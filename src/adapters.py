@@ -46,7 +46,7 @@ class IPv4AddressAdapter(Adapter):
 # MAC address adapter - convert between text and raw bytes
 class MACAddressAdapter(Adapter):
     def _decode(self, obj, context, path):
-        return ':'.join(map(lambda z: f'{z:02x}', obj))
+        return ':'.join([f'{h:02x}' for h in obj])
 
     def _encode(self, obj, context, path):
         # Strip out anything that's not a hex digit

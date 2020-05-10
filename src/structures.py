@@ -63,9 +63,9 @@ MNDP_TLV = Struct(
             'board': AString,
             'interface_name': AString,
             'ipv6_address': IPv6AddressAdapter(Bytes(16)),
-            'ipv4_address': IPv4AddressAdapter(Bytes(16)),
+            'ipv4_address': IPv4AddressAdapter(Bytes(4)),
             'uptime': UptimeAdapter(Int32ul), # little endian for some reason
-            'mac_address': MACAddressAdapter(Byte[6]),
+            'mac_address': MACAddressAdapter(Bytes(6)),
             },
             default = GreedyBytes
         )
@@ -74,7 +74,7 @@ MNDP_TLV = Struct(
 
 # Main structure for an MNDP reply
 MNDP_REPLY = Struct(
-    'header' / Bytes(2),
+    'header' / Default(Bytes(2), 0),
     'seq' / Int16ub,
     'data' / GreedyRange(MNDP_TLV),
 )
