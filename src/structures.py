@@ -42,6 +42,7 @@ MNDP_TYPES = Enum(Int16ub,
     unpack = 14,
     ipv6_address = 15,
     interface_name = 16,
+    ipv4_address = 17,
 )
 
 # Helper type for variable length ascii strings
@@ -53,8 +54,7 @@ AString = GreedyString('ascii')
 # pass through as raw bytes.
 MNDP_TLV = Struct(
     'type' / MNDP_TYPES,
-    'length' / Int16ub,
-    'value' / FixedSized(this.length,
+    'value' / Prefixed(Int16ub,
         Switch(this.type, {
             'identity': AString,
             'version': AString,
@@ -62,6 +62,8 @@ MNDP_TLV = Struct(
             'software_id': AString,
             'board': AString,
             'interface_name': AString,
+            'ipv6_address': IPv6AddressAdapter(Bytes(16)),
+            'ipv4_address': IPv4AddressAdapter(Bytes(16)),
             'uptime': UptimeAdapter(Int32ul), # little endian for some reason
             'mac_address': MACAddressAdapter(Byte[6]),
             },

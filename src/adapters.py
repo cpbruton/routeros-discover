@@ -22,7 +22,26 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 from construct import Adapter
 import datetime
+import ipaddress
 import re
+
+# IP address adapter for IPv6
+# Uses Python's builtin ipaddress module
+class IPv6AddressAdapter(Adapter):
+    def _decode(self, obj, context, path):
+        return ipaddress.IPv6Address(obj)
+
+    def _encode(self, obj, context, path):
+        return ipaddress.IPv6Address(obj).packed
+
+# IP address adapter for IPv4
+# Uses Python's builtin ipaddress module
+class IPv4AddressAdapter(Adapter):
+    def _decode(self, obj, context, path):
+        return ipaddress.IPv4Address(obj)
+
+    def _encode(self, obj, context, path):
+        return ipaddress.IPv4Address(obj).packed
 
 # MAC address adapter - convert between text and raw bytes
 class MACAddressAdapter(Adapter):
