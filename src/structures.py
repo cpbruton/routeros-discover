@@ -45,9 +45,6 @@ MNDP_TYPES = Enum(Int16ub,
     ipv4_address = 17,
 )
 
-# Helper type for variable length ascii strings
-AString = GreedyString('ascii')
-
 # MNDP replies include a series of type-length-value (TLV)
 # structures. This TLV structure will convert to/from a
 # human-readable representation for known types, otherwise
@@ -56,12 +53,12 @@ MNDP_TLV = Struct(
     'type' / MNDP_TYPES,
     'value' / Prefixed(Int16ub,
         Switch(this.type, {
-            'identity': AString,
-            'version': AString,
-            'platform': AString,
-            'software_id': AString,
-            'board': AString,
-            'interface_name': AString,
+            'identity': GreedyString('ascii'),
+            'version': GreedyString('ascii'),
+            'platform': GreedyString('ascii'),
+            'software_id': GreedyString('ascii'),
+            'board': GreedyString('ascii'),
+            'interface_name': GreedyString('ascii'),
             'ipv6_address': IPv6AddressAdapter(Bytes(16)),
             'ipv4_address': IPv4AddressAdapter(Bytes(4)),
             'uptime': UptimeAdapter(Int32ul), # little endian for some reason
