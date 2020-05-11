@@ -24,7 +24,9 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 from structures import *
 import construct
 import json
+import selectors
 import socket
+import struct
 
 
 def format_mndp_reply(content):
@@ -40,39 +42,102 @@ def format_mndp_reply(content):
 
 def main():
     
-    bind_addr = socket.getaddrinfo(host='0.0.0.0', port=5678, family=socket.AF_INET, proto=socket.IPPROTO_UDP)
-    #print(f'bind_addr: {bind_addr}')
+    # Get the bind addresses for UDP port 5678
+    # The AI_PASSIVE option gives us wildcard addresses (0.0.0.0 and ::)
+    # instead of loopback addresses when host=None
+    
+    addr_info = socket.getaddrinfo(host=None, port=5678,
+        family=socket.AF_UNSPEC, proto=socket.IPPROTO_UDP,
+        flags=socket.AI_PASSIVE)
 
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+    # There should be one or two addresses returned
+    assert len(addr_info) in [1,2]
 
+    # Loop through and open a socket for each address
+    socks = list()
+    for addr_info_item in addr_info:
+        # Break down the 5-tuple from getaddrinfo()
+        addr_family, socket_kind, proto, cname, bind_addr = addr_info_item
+
+        # Create a new socket
+        sock = socket.socket(addr_family, socket_kind)
+
+        # Set socket options
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        sock.setblocking(False)
 
-        sock.bind(bind_addr[0][4])
+        if addr_family is socket.AF_INET:
+            # If IPv4, set option to allow broadcast
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
+        if addr_family is socket.AF_INET6:
+            # If IPv6, limit to IPv6 only
+            sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+
+        # Bind the socket and add to list
+        sock.bind(bind_addr)
+        socks.append(sock)
+
+    # Set up the selector
+    sel = selectors.DefaultSelector()
+
+    # Join multicast (if IPv6) and send initial MNDP request
+    for sock in socks:
+        if sock.family is socket.AF_INET:
+            dst_addr = '255.255.255.255'
+        else:
+            dst_addr = 'ff02::1'
+
+        addr_info = socket.getaddrinfo(host=dst_addr, port=5678,
+            family=sock.family, proto=socket.IPPROTO_UDP)
+
+        send_addr = addr_info[0][4]
+
+        # Build the request packet
         req_data = MNDP_REQUEST.build(None)
 
-        for n in range(0,4):
-            sock.sendto(req_data, ('255.255.255.255', 5678))
+        if sock.family is socket.AF_INET:
+            # For IPv4 broadcast goes automatically to all interfaces     
+            for n in range(0,2):
+                print(f'sending request to {send_addr}')
+                sock.sendto(req_data, send_addr)
+        else:
+            # For IPv6 we can only send multicast one interface at a time
+            # Not all interfaces will work
+            ifs = socket.if_nameindex()
+            for iface in ifs:
+                try:
+                    sock.setsockopt(socket.IPPROTO_IPV6,
+                        socket.IPV6_MULTICAST_IF, iface[0])
+                    print(f'sending request to {send_addr} on {iface[1]}')
+                    sock.sendto(req_data, send_addr)
+                except OSError:
+                    print(f'OSError sending on {iface[1]}')
+                    continue
 
-        while True:
-            #print('waiting for data')
-            data, address = sock.recvfrom(4096)
+        # Register with the selector
+        sel.register(sock, selectors.EVENT_READ)
+
+
+    # Wait for replies and print when received
+    while True:
+        events = sel.select()
+
+        for key, mask in events:
+            sock = key.fileobj
+
+            data, address = sock.recvfrom(2048)
 
             if data:
-                #print('received data')
                 try:
                     result = MNDP_REPLY.parse(data)
                 except construct.ConstructError:
-                    #print('construct error')
+                    print('construct error')
                     continue
 
                 print(f'Received from {address}:')
                 print(format_mndp_reply(result))
-
-
-
-
 
 if __name__ == '__main__':
     main()
