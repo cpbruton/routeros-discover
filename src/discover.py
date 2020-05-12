@@ -29,16 +29,20 @@ import socket
 import struct
 
 
-def format_mndp_reply(content):
+def format_mndp_reply(content, print_json=True):
 
     # Rearrange the list a bit
     values = dict()
 
     for v in content.data:
-        values[str(v['type'])] = v['value']
+        values[str(v['type'])] = str(v['value'])
 
-    return json.dumps(values, indent=2, default=str)
-
+    if print_json:
+        return json.dumps(values, indent=2, default=str)
+    else:
+        f = f'{values.get("identity")} {values.get("mac_address")} {values.get("ipv4_address", "")} {values.get("ipv6_address", "")}'
+        f = f + f'\n  up {values.get("uptime")}  ver {values.get("version")}  {values.get("platform")} {values.get("board")}'
+        return f
 
 def main():
     
@@ -82,6 +86,8 @@ def main():
     # Set up the selector
     sel = selectors.DefaultSelector()
 
+    print('MNDP Discover')
+
     # Join multicast (if IPv6) and send initial MNDP request
     for sock in socks:
         if sock.family is socket.AF_INET:
@@ -99,9 +105,7 @@ def main():
 
         if sock.family is socket.AF_INET:
             # For IPv4 broadcast goes automatically to all interfaces     
-            for n in range(0,2):
-                print(f'sending request to {send_addr}')
-                sock.sendto(req_data, send_addr)
+            sock.sendto(req_data, send_addr)
         else:
             # For IPv6 we can only send multicast one interface at a time
             # Not all interfaces will work
@@ -110,10 +114,10 @@ def main():
                 try:
                     sock.setsockopt(socket.IPPROTO_IPV6,
                         socket.IPV6_MULTICAST_IF, iface[0])
-                    print(f'sending request to {send_addr} on {iface[1]}')
+                    #print(f'sending request to {send_addr} on {iface[1]}')
                     sock.sendto(req_data, send_addr)
                 except OSError:
-                    print(f'OSError sending on {iface[1]}')
+                    #print(f'OSError sending on {iface[1]}')
                     continue
 
         # Register with the selector
@@ -121,23 +125,28 @@ def main():
 
 
     # Wait for replies and print when received
-    while True:
-        events = sel.select()
+    try:
+        while True:
+            events = sel.select()
 
-        for key, mask in events:
-            sock = key.fileobj
+            for key, mask in events:
+                sock = key.fileobj
 
-            data, address = sock.recvfrom(2048)
+                data, address = sock.recvfrom(2048)
 
-            if data:
-                try:
-                    result = MNDP_REPLY.parse(data)
-                except construct.ConstructError:
-                    print('construct error')
-                    continue
+                if len(data) > 18:
+                    try:
+                        result = MNDP_REPLY.parse(data)
+                    except construct.ConstructError:
+                        #print('construct error')
+                        continue
 
-                print(f'Received from {address}:')
-                print(format_mndp_reply(result))
+                    #print(f'Received from {address}:')
+                    print(format_mndp_reply(result, print_json=False))
+
+    except KeyboardInterrupt:
+        for sock in socks:
+            sock.close()
 
 if __name__ == '__main__':
     main()
