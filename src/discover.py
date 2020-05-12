@@ -40,8 +40,8 @@ def format_mndp_reply(content, print_json=True):
     if print_json:
         return json.dumps(values, indent=2, default=str)
     else:
-        f = f'{values.get("identity")} {values.get("mac_address")} {values.get("ipv4_address", "")} {values.get("ipv6_address", "")}'
-        f = f + f'\n  up {values.get("uptime")}  ver {values.get("version")}  {values.get("platform")} {values.get("board")}'
+        f = f'{values.get("identity")}  {values.get("mac_address")}  {values.get("ipv4_address", "")}  {values.get("ipv6_address", "")}  {values.get("interface_name")}'
+        f = f + f'\n  ver {values.get("version")}  up {values.get("uptime")}  {values.get("platform")} {values.get("board")}  {values.get("software_id")}'
         return f
 
 def main():
